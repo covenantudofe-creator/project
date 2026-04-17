@@ -1,26 +1,29 @@
-const fs = require("fs");
-const path = require("path");
+const db = {
+  data: [],
 
-const dbPath = path.join(__dirname, "db.json");
+  insert(profile) {
+    this.data.push(profile);
+  },
 
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify({ profiles: [] }));
-}
+  getAll() {
+    return this.data;
+  },
 
-function read() {
-  return JSON.parse(fs.readFileSync(dbPath));
-}
+  findById(id) {
+    return this.data.find(p => p.id === id);
+  },
 
-function write(data) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
+  findByName(name) {
+    return this.data.find(p => p.name === name);
+  },
 
-module.exports = {
-  getAll: () => read().profiles,
-  findByName: (name) => read().profiles.find(p => p.name === name),
-  insert: (profile) => {
-    const db = read();
-    db.profiles.push(profile);
-    write(db);
+  delete(id) {
+    const index = this.data.findIndex(p => p.id === id);
+    if (index === -1) return false;
+
+    this.data.splice(index, 1);
+    return true;
   }
 };
+
+module.exports = db;

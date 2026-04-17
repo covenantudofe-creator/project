@@ -1,29 +1,19 @@
 const express = require("express");
 const cors = require("cors");
-require("./database");
 
-const profilesRoutes = require("./routes/profiles");
+const profileRoutes = require("./routes/profiles");
 
 const app = express();
 
-// -------------------- MIDDLEWARE --------------------
-app.use(cors()); // required for grading
-app.use(express.json()); // parse JSON body
+app.use(cors());
+app.use(express.json());
 
-// -------------------- ROUTES --------------------
-app.use("/api/profiles", profilesRoutes);
-
-// -------------------- TEST ROUTE --------------------
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// optional test endpoint
-app.post("/test", (req, res) => {
-  res.json({ ok: true });
-});
+app.use("/api/profiles", profileRoutes);
 
-// -------------------- ERROR HANDLING (OPTIONAL BUT GOOD) --------------------
 app.use((req, res) => {
   res.status(404).json({
     status: "error",
@@ -31,10 +21,8 @@ app.use((req, res) => {
   });
 });
 
-// -------------------- SERVER START --------------------
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log("Connected to SQLite database");
+  console.log("Server running on port", PORT);
 });

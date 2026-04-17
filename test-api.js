@@ -1,34 +1,32 @@
 const axios = require("axios");
 
-const BASE_URL = "https://project-production-9ab8.up.railway.app";
+const BASE_URL = "https://project-production-9ab8.up.railway.app/api/profiles";
 
-async function runTests() {
+async function testAPI() {
   try {
-    console.log("🚀 Testing API...\n");
+    console.log("🚀 Testing LIVE API...\n");
 
-    const root = await axios.get(`${BASE_URL}/`);
-    console.log("ROOT:", root.data);
-
-    const create = await axios.post(`${BASE_URL}/api/profiles`, {
+    const createRes = await axios.post(BASE_URL, {
       name: "ella"
     });
+    console.log("CREATE:", createRes.data);
 
-    console.log("CREATE:", create.data);
+    const id = createRes.data.data.id;
 
-    const id = create.data.data.id;
+    const allRes = await axios.get(BASE_URL);
+    console.log("\nALL:", allRes.data);
 
-    const all = await axios.get(`${BASE_URL}/api/profiles`);
-    console.log("ALL:", all.data);
+    const singleRes = await axios.get(`${BASE_URL}/${id}`);
+    console.log("\nSINGLE:", singleRes.data);
 
-    const single = await axios.get(`${BASE_URL}/api/profiles/${id}`);
-    console.log("SINGLE:", single.data);
+    const deleteRes = await axios.delete(`${BASE_URL}/${id}`);
+    console.log("\nDELETE:", deleteRes.data);
 
-    await axios.delete(`${BASE_URL}/api/profiles/${id}`);
-    console.log("DELETE: success");
+  catch (err) {
+  console.log("🔥 FULL ERROR:", err.response?.data || err.message || err);
 
-  } catch (err) {
-    console.log("ERROR:", err.response?.data || err.message);
-  }
+  return res.status(500).json({
+    status: "error",
+    message: err.response?.data?.message || err.message || "Server error"
+  });
 }
-
-runTests();
