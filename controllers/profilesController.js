@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 
 // -------------------- AGE GROUP --------------------
 function getAgeGroup(age) {
+  if (!age) return "unknown";
   if (age <= 12) return "child";
   if (age <= 19) return "teenager";
   if (age <= 59) return "adult";
@@ -23,102 +24,123 @@ exports.createProfile = async (req, res) => {
 
   const cleanName = name.toLowerCase();
 
-  db.get(`SELECT * FROM profiles WHERE name = ?`, [cleanName], async (err, existing) => {
-    if (err) {
-      return res.status(500).json({
-        status: "error",
-        message: "Database error"
-      });
-    }
+  try {
+    // check existing
+    db.get(
+      "SELECT * FROM profiles WHERE name = ?",
+      [cleanName],
+      async (err, existing) => {
+        if (err) {
+          return res.status(500).json({
+            status: "error",
+            message: "Database error"
+          });
+        }
 
-    if (existing) {
-      return res.json({
-        status: "success",
-        message: "Profile already exists",
-        data: existing
-      });
-    }
+        if (existing) {
+          return res.json({
+            status: "success",
+            message: "Profile already exists",
+            data: existing
+          });
+        }
 
-    try {
-      const [genderRes, ageRes, countryRes] = await Promise.all([
-        axios.get(`https://api.genderize.io?name=${cleanName}`),
-        axios.get(`https://api.agify.io?name=${cleanName}`),
-        axios.get(`https://api.nationalize.io?name=${cleanName}`)
-      ]);
+        try {
+          const [genderRes, ageRes, countryRes] = await Promise.all([
+            axios.get(`https://api.genderize.io?name=${cleanName}`),
+            axios.get(`https://api.agify.io?name=${cleanName}`),
+            axios.get(`https://api.nationalize.io?name=${cleanName}`)
+          ]);
 
-      const genderData = genderRes.data;
-      const ageData = ageRes.data;
-      const countryData = countryRes.data;
+          const genderData = genderRes?.data || {};
+          const ageData = ageRes?.data || {};
+          const countryData = countryRes?.data || {};
 
-      if (!genderData.gender || genderData.count === 0) {
-        return res.status(502).json({ status: "error", message: "Invalid gender data" });
-      }
-
-      if (ageData.age == null) {
-        return res.status(502).json({ status: "error", message: "Invalid age data" });
-      }
-
-      if (!countryData.country || !countryData.country.length) {
-        return res.status(502).json({ status: "error", message: "Invalid country data" });
-      }
-
-      const bestCountry = countryData.country.reduce((a, b) =>
-        a.probability > b.probability ? a : b
-      );
-
-      const profile = {
-        id: uuidv4(),
-        name: cleanName,
-        gender: genderData.gender,
-        gender_probability: genderData.probability,
-        sample_size: genderData.count,
-        age: ageData.age,
-        age_group: getAgeGroup(ageData.age),
-        country_id: bestCountry.country_id,
-        country_probability: bestCountry.probability,
-        created_at: new Date().toISOString()
-      };
-
-      db.run(
-        `INSERT INTO profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          profile.id,
-          profile.name,
-          profile.gender,
-          profile.gender_probability,
-          profile.sample_size,
-          profile.age,
-          profile.age_group,
-          profile.country_id,
-          profile.country_probability,
-          profile.created_at
-        ],
-        (err) => {
-          if (err) {
-            return res.status(500).json({
+          if (!genderData.gender || !genderData.count) {
+            return res.status(502).json({
               status: "error",
-              message: "Database insert failed"
+              message: "Invalid gender data"
             });
           }
 
-          return res.status(201).json({
-            status: "success",
-            data: profile
+          if (ageData.age == null) {
+            return res.status(502).json({
+              status: "error",
+              message: "Invalid age data"
+            });
+          }
+
+          if (!countryData.country || countryData.country.length === 0) {
+            return res.status(502).json({
+              status: "error",
+              message: "Invalid country data"
+            });
+          }
+
+          const bestCountry = countryData.country.reduce((a, b) =>
+            a.probability > b.probability ? a : b
+          );
+
+          const profile = {
+            id: uuidv4(),
+            name: cleanName,
+            gender: genderData.gender,
+            gender_probability: genderData.probability,
+            sample_size: genderData.count,
+            age: ageData.age,
+            age_group: getAgeGroup(ageData.age),
+            country_id: bestCountry.country_id,
+            country_probability: bestCountry.probability,
+            created_at: new Date().toISOString()
+          };
+
+          db.run(
+            `INSERT INTO profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              profile.id,
+              profile.name,
+              profile.gender,
+              profile.gender_probability,
+              profile.sample_size,
+              profile.age,
+              profile.age_group,
+              profile.country_id,
+              profile.country_probability,
+              profile.created_at
+            ],
+            (err) => {
+              if (err) {
+                return res.status(500).json({
+                  status: "error",
+                  message: "Database insert failed"
+                });
+              }
+
+              return res.status(201).json({
+                status: "success",
+                data: profile
+              });
+            }
+          );
+        } catch (error) {
+          return res.status(500).json({
+            status: "error",
+            message: "External API error"
           });
         }
-      );
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        message: "Server error"
-      });
-    }
-  });
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: "Server error"
+    });
+  }
 };
 
-// -------------------- GET ALL --------------------
+// -------------------- GET ALL PROFILES --------------------
 exports.getProfiles = (req, res) => {
-  db.all(`SELECT * FROM profiles`, [], (err, rows) => {
+  db.all("SELECT * FROM profiles", [], (err, rows) => {
     if (err) {
       return res.status(500).json({
         status: "error",
@@ -138,7 +160,7 @@ exports.getProfiles = (req, res) => {
 exports.getProfileById = (req, res) => {
   const { id } = req.params;
 
-  db.get(`SELECT * FROM profiles WHERE id = ?`, [id], (err, row) => {
+  db.get("SELECT * FROM profiles WHERE id = ?", [id], (err, row) => {
     if (err) {
       return res.status(500).json({
         status: "error",
@@ -160,7 +182,7 @@ exports.getProfileById = (req, res) => {
   });
 };
 
-// -------------------- DELETE --------------------
+// -------------------- DELETE PROFILE --------------------
 exports.deleteProfile = (req, res) => {
   const { id } = req.params;
 
@@ -171,7 +193,7 @@ exports.deleteProfile = (req, res) => {
     });
   }
 
-  db.run(`DELETE FROM profiles WHERE id = ?`, [id], function (err) {
+  db.run("DELETE FROM profiles WHERE id = ?", [id], function (err) {
     if (err) {
       return res.status(500).json({
         status: "error",
