@@ -2,7 +2,6 @@ const axios = require("axios");
 const db = require("../database");
 const { v4: uuidv4 } = require("uuid");
 
-// -------------------- AGE GROUP --------------------
 function getAgeGroup(age) {
   if (age <= 12) return "child";
   if (age <= 19) return "teenager";
@@ -10,34 +9,29 @@ function getAgeGroup(age) {
   return "senior";
 }
 
-// -------------------- CREATE PROFILE --------------------
 exports.createProfile = async (req, res) => {
+  const { name } = req.body;
+
+  if (!name) {
+    return res.status(400).json({
+      status: "error",
+      message: "Missing name"
+    });
+  }
+
+  const cleanName = name.toLowerCase();
+
+  const existing = db.findByName(cleanName);
+
+  if (existing) {
+    return res.json({
+      status: "success",
+      message: "Profile already exists",
+      data: existing
+    });
+  }
+
   try {
-    const { name } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        status: "error",
-        message: "Missing name"
-      });
-    }
-
-    const cleanName = name.toLowerCase();
-
-    // -------------------- CHECK DUPLICATE --------------------
-    const existing = db
-      .prepare("SELECT * FROM profiles WHERE name = ?")
-      .get(cleanName);
-
-    if (existing) {
-      return res.json({
-        status: "success",
-        message: "Profile already exists",
-        data: existing
-      });
-    }
-
-    // -------------------- FETCH APIs --------------------
     const [genderRes, ageRes, countryRes] = await Promise.all([
       axios.get(`https://api.genderize.io?name=${cleanName}`),
       axios.get(`https://api.agify.io?name=${cleanName}`),
@@ -48,34 +42,22 @@ exports.createProfile = async (req, res) => {
     const ageData = ageRes.data;
     const countryData = countryRes.data;
 
-    // -------------------- VALIDATION --------------------
     if (!genderData.gender || genderData.count === 0) {
-      return res.status(502).json({
-        status: "error",
-        message: "Genderize returned invalid response"
-      });
+      return res.status(502).json({ status: "error", message: "Invalid gender data" });
     }
 
-    if (ageData.age === null || ageData.age === undefined) {
-      return res.status(502).json({
-        status: "error",
-        message: "Agify returned invalid response"
-      });
+    if (ageData.age == null) {
+      return res.status(502).json({ status: "error", message: "Invalid age data" });
     }
 
-    if (!countryData.country || countryData.country.length === 0) {
-      return res.status(502).json({
-        status: "error",
-        message: "Nationalize returned invalid response"
-      });
+    if (!countryData.country || !countryData.country.length) {
+      return res.status(502).json({ status: "error", message: "Invalid country data" });
     }
 
-    // -------------------- BEST COUNTRY --------------------
     const bestCountry = countryData.country.reduce((a, b) =>
       a.probability > b.probability ? a : b
     );
 
-    // -------------------- PROFILE OBJECT --------------------
     const profile = {
       id: uuidv4(),
       name: cleanName,
@@ -89,20 +71,14 @@ exports.createProfile = async (req, res) => {
       created_at: new Date().toISOString()
     };
 
-    // -------------------- INSERT --------------------
-    db.prepare(`
-      INSERT INTO profiles (
-        id, name, gender, gender_probability, sample_size,
-        age, age_group, country_id, country_probability, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(Object.values(profile));
+    db.insert(profile);
 
     return res.status(201).json({
       status: "success",
       data: profile
     });
 
-  } catch (error) {
+  } catch (err) {
     return res.status(500).json({
       status: "error",
       message: "Server error"
@@ -110,46 +86,20 @@ exports.createProfile = async (req, res) => {
   }
 };
 
-// -------------------- GET ALL --------------------
 exports.getProfiles = (req, res) => {
-  const { gender, country_id, age_group } = req.query;
-
-  let query = "SELECT * FROM profiles WHERE 1=1";
-  const params = [];
-
-  if (gender) {
-    query += " AND LOWER(gender) = ?";
-    params.push(gender.toLowerCase());
-  }
-
-  if (country_id) {
-    query += " AND LOWER(country_id) = ?";
-    params.push(country_id.toLowerCase());
-  }
-
-  if (age_group) {
-    query += " AND LOWER(age_group) = ?";
-    params.push(age_group.toLowerCase());
-  }
-
-  const rows = db.prepare(query).all(...params);
+  const data = db.getAll();
 
   return res.json({
     status: "success",
-    count: rows.length,
-    data: rows
+    count: data.length,
+    data
   });
 };
 
-// -------------------- GET BY ID --------------------
 exports.getProfileById = (req, res) => {
-  const { id } = req.params;
+  const profile = db.findById(req.params.id);
 
-  const row = db
-    .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(id);
-
-  if (!row) {
+  if (!profile) {
     return res.status(404).json({
       status: "error",
       message: "Profile not found"
@@ -158,19 +108,14 @@ exports.getProfileById = (req, res) => {
 
   return res.json({
     status: "success",
-    data: row
+    data: profile
   });
 };
 
-// -------------------- DELETE --------------------
 exports.deleteProfile = (req, res) => {
-  const { id } = req.params;
+  const ok = db.delete(req.params.id);
 
-  const result = db
-    .prepare("DELETE FROM profiles WHERE id = ?")
-    .run(id);
-
-  if (result.changes === 0) {
+  if (!ok) {
     return res.status(404).json({
       status: "error",
       message: "Profile not found"
