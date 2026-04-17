@@ -3,7 +3,7 @@ const path = require("path");
 
 const db = new Database(path.join(__dirname, "database.db"));
 
-// CREATE TABLE
+// create table
 db.exec(`
 CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
