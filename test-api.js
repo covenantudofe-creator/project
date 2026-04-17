@@ -22,11 +22,10 @@ async function testAPI() {
     const deleteRes = await axios.delete(`${BASE_URL}/${id}`);
     console.log("\nDELETE:", deleteRes.data);
 
-  catch (err) {
-  console.log("🔥 FULL ERROR:", err.response?.data || err.message || err);
-
-  return res.status(500).json({
-    status: "error",
-    message: err.response?.data?.message || err.message || "Server error"
-  });
+  } catch (err) {
+    console.log("\nERROR:");
+    console.log(err.response?.data || err.message);
+  }
 }
+
+testAPI();
