@@ -1,6 +1,6 @@
 const axios = require("axios");
 const db = require("../database");
-const { v7: uuidv7 } = require("uuid");
+const { v4: uuidv4 } = require("uuid");
 
 // -------------------- AGE GROUP --------------------
 function getAgeGroup(age) {
@@ -53,37 +53,37 @@ exports.createProfile = (req, res) => {
         const ageData = ageRes.data;
         const countryData = countryRes.data;
 
-        // -------------------- VALIDATION (502 RULES) --------------------
+        // -------------------- VALIDATION --------------------
 
         if (!genderData.gender || genderData.count === 0) {
           return res.status(502).json({
-            status: "502",
+            status: "error",
             message: "Genderize returned an invalid response"
           });
         }
 
         if (ageData.age === null || ageData.age === undefined) {
           return res.status(502).json({
-            status: "502",
+            status: "error",
             message: "Agify returned an invalid response"
           });
         }
 
         if (!countryData.country || countryData.country.length === 0) {
           return res.status(502).json({
-            status: "502",
+            status: "error",
             message: "Nationalize returned an invalid response"
           });
         }
 
-        // -------------------- PICK BEST COUNTRY --------------------
+        // -------------------- BEST COUNTRY --------------------
         const bestCountry = countryData.country.reduce((a, b) =>
           a.probability > b.probability ? a : b
         );
 
-        // -------------------- BUILD PROFILE --------------------
+        // -------------------- PROFILE --------------------
         const profile = {
-          id: uuidv7(),
+          id: uuidv4(),
           name: cleanName,
           gender: genderData.gender,
           gender_probability: genderData.probability,
@@ -95,7 +95,7 @@ exports.createProfile = (req, res) => {
           created_at: new Date().toISOString()
         };
 
-        // -------------------- SAVE TO DB --------------------
+        // -------------------- SAVE --------------------
         db.run(
           `INSERT INTO profiles (
             id, name, gender, gender_probability, sample_size,
@@ -126,7 +126,7 @@ exports.createProfile = (req, res) => {
   );
 };
 
-// -------------------- GET ALL PROFILES --------------------
+// -------------------- GET ALL --------------------
 exports.getProfiles = (req, res) => {
   const { gender, country_id, age_group } = req.query;
 
@@ -164,7 +164,7 @@ exports.getProfiles = (req, res) => {
   });
 };
 
-// -------------------- GET PROFILE BY ID --------------------
+// -------------------- GET BY ID --------------------
 exports.getProfileById = (req, res) => {
   const { id } = req.params;
 
@@ -190,7 +190,7 @@ exports.getProfileById = (req, res) => {
   });
 };
 
-// -------------------- DELETE PROFILE --------------------
+// -------------------- DELETE --------------------
 exports.deleteProfile = (req, res) => {
   const { id } = req.params;
 
