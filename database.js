@@ -1,7 +1,10 @@
 const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
 
-// Create or connect to database file
-const db = new sqlite3.Database("./database.db", (err) => {
+// SAFE PATH FOR BOTH LOCAL + RAILWAY
+const dbPath = path.join(__dirname, "database.db");
+
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("DB Error:", err.message);
   } else {
@@ -9,7 +12,7 @@ const db = new sqlite3.Database("./database.db", (err) => {
   }
 });
 
-// -------------------- CREATE TABLE --------------------
+// CREATE TABLE
 db.run(`
   CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY,
